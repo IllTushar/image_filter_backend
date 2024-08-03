@@ -2,3 +2,4 @@ removebg
 sqlalchemy
 uvicorn
 pydantic
+fastapi
