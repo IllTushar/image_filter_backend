@@ -1,0 +1,4 @@
+removebg
+sqlalchemy
+uvicorn
+pydantic
