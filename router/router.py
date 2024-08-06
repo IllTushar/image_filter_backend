@@ -2,15 +2,16 @@ import base64
 from io import BytesIO
 import tempfile
 from sqlalchemy.orm import Session
-from table.table import ImageModel
+from table.table import ImageModel, BlackWhiteImage
 from engine.engine import Base, engine, SessionLocal
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from model.image_model import ResponseImage
+from typing import List
 from removebg import RemoveBg
-from sqlalchemy import Column, Integer, String, create_engine
+from model.black_white_image_model import ImageResponseImage
 
 from PIL import Image as PILImage
-from pydantic import BaseModel
+
 import os
 
 router = APIRouter(prefix="/image", tags=["Image"])
@@ -52,6 +53,16 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(conne
     return {"id": db_image.id, "image_data": db_image.image_data}
 
 
+# Define the endpoint to get all images
+@router.get("/get-all-image", response_model=List[ResponseImage])
+async def get_all_image(db: Session = Depends(connect_db)):
+    db_images = db.query(ImageModel).all()
+    if not db_images:
+        raise HTTPException(status_code=404, detail="Not Found!!")
+
+    return db_images
+
+
 @router.get("/remove-bg/{image_id}", response_model=ResponseImage)
 async def remove_bg_endpoint(image_id: int, db: Session = Depends(connect_db)):
     db_image = db.query(ImageModel).filter(ImageModel.id == image_id).first()
@@ -87,3 +98,36 @@ async def remove_bg_endpoint(image_id: int, db: Session = Depends(connect_db)):
         os.remove(output_temp_path)
 
     return {"id": image_id, "image_data": output_img_str}
+
+
+@router.post("/filter/black-white/{image_id}", response_model=ImageResponseImage)
+async def black_white(image_id: int, db: Session = Depends(connect_db)):
+    db_image_data = db.query(ImageModel).filter(ImageModel.id == image_id).first()
+    if not db_image_data:
+        raise HTTPException(status_code=404, detail="Details not found!")
+
+    image_data = base64.b64decode(db_image_data.image_data)
+    image = PILImage.open(BytesIO(image_data))
+
+    bw_image = image.convert('L')
+
+    buffered = BytesIO()
+    bw_image.save(buffered, format="PNG")
+
+    bw_base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    db_bw_image = BlackWhiteImage(black_white_image=bw_base64_image, image_id=image_id)
+    db.add(db_bw_image)
+    db.commit()
+    db.refresh(db_bw_image)
+
+    return db_bw_image
+
+
+@router.get("/get-all-black-white-image", response_model=List[ImageResponseImage])
+async def get_all_black_white_image(db: Session = Depends(connect_db)):
+    all_image_data = db.query(BlackWhiteImage).all()
+    if not all_image_data:
+        return HTTPException(status_code=404, detail="Data is not found!!")
+    else:
+        return all_image_data

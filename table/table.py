@@ -1,12 +1,21 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column
+from sqlalchemy import Column, Integer, String, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from engine.engine import Base
 
-Base = declarative_base()
 
-
+# SQLAlchemy models
 class ImageModel(Base):
     __tablename__ = "imaging"
-    __allow_unmapped__ = True  # Allow unmapped attributes
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    image_data: Mapped[str] = mapped_column(String, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    image_data = Column(String, nullable=False)
+    black_white_images = relationship("BlackWhiteImage", back_populates="original_image")
+
+
+class BlackWhiteImage(Base):
+    __tablename__ = "black_white_png"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    black_white_image = Column(Text, nullable=False)
+    image_id = Column(Integer, ForeignKey("imaging.id"), nullable=False)
+    original_image = relationship("ImageModel", back_populates="black_white_images")
